@@ -197,6 +197,51 @@ export class InGameState {
     })
   }
 
+  /**
+   * Updates gold from allGameData if the Live Client API provides gold fields.
+   * This is a fallback/alternative to FarsightData for gold tracking.
+   */
+  private updateGoldFromAllGameData(allGameData: AllGameData): void {
+    // Check if any player has gold data from the Live Client API
+    const hasGoldData = allGameData.allPlayers.some(p => 
+      p.totalGold !== undefined
+    )
+    
+    if (!hasGoldData) return
+
+    let gold100 = 0
+    let gold200 = 0
+
+    for (const player of allGameData.allPlayers) {
+      // Update individual player gold if available
+      if (player.totalGold !== undefined) {
+        const statePlayer = this.gameState.player.find(
+          p => p.riotIdGameName === player.riotIdGameName
+        )
+        if (statePlayer) {
+          statePlayer.currentGold = player.currentGold ?? 0
+          statePlayer.totalGold = player.totalGold
+        }
+
+        // Aggregate team gold
+        if (player.team === 'ORDER') {
+          gold100 += player.totalGold
+        } else if (player.team === 'CHAOS') {
+          gold200 += player.totalGold
+        }
+      }
+    }
+
+    // Update team gold
+    this.gameState.gold[100] = gold100
+    this.gameState.gold[200] = gold200
+    
+    // Update gold graph
+    this.gameState.goldGraph[Math.round(allGameData.gameData.gameTime)] = gold100 - gold200
+    
+    this.updateState()
+  }
+
   public handelData(allGameData: AllGameData): void {
     if (this.gameData.length > 0) {
       let previousGameData = this.gameData[this.gameData.length - 1]
@@ -224,6 +269,9 @@ export class InGameState {
           champ.key
         ));
       })
+
+      // Update gold from allGameData if available (Live Client API provides gold in some modes)
+      this.updateGoldFromAllGameData(allGameData)
 
       setTimeout(() => {
         this.checkPlayerUpdate(allGameData)
