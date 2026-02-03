@@ -346,6 +346,7 @@ export class InGameState {
     this.gameState.goldGraph[Math.round(farsightData.gameTime)] = gold100 - gold200
     this.gameState.gold[100] = gold100
     this.gameState.gold[200] = gold200
+    this.gameState.gameTime = farsightData.gameTime
 
     const state = this.convertGameState()
 
