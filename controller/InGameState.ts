@@ -217,6 +217,15 @@ export class InGameState {
         for (const [id, func] of this.actions.entries()) {
           func(allGameData, id)
         }
+
+        this.ctx.LPTE.emit({
+          meta: {
+            namespace: this.namespace,
+            type: 'update',
+            version: 1
+          },
+          state: this.convertGameState()
+        })
       }, this.config.delay / 2)
     }
 
