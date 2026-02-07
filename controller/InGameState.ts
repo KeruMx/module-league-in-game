@@ -32,6 +32,92 @@ export class InGameState {
     'Mountain': MobType.MountainDragon
   }
 
+  /**
+   * Find a player by name, checking both riotIdGameName and summonerName.
+   * This is needed because the Live Client API may use either field
+   * depending on the game version and region settings.
+   */
+  private static findPlayerByName(players: Player[], name: string): Player | undefined {
+    return players.find((p) => p.riotIdGameName === name || p.summonerName === name)
+  }
+
+  // Gold estimation constants (safe alternative to memory reading)
+  private static readonly GOLD_ESTIMATION = {
+    PASSIVE_GOLD_PER_SECOND: 1.0,     // Base passive gold generation
+    STARTING_GOLD: 500,                // Starting gold for all players
+    GOLD_PER_CS: 19,                   // Average gold per CS (mix of minion types)
+    GOLD_PER_KILL: 300,                // Base gold per champion kill
+    GOLD_PER_ASSIST: 150,              // Approximate gold per assist
+  }
+
+  /**
+   * Estimates player gold based on available data from the Live Client API.
+   * This is a safe alternative to memory reading (FarsightData) that won't trigger bans.
+   * 
+   * Formula: StartingGold + PassiveGold + (CS × GoldPerCS) + (Kills × GoldPerKill) + (Assists × GoldPerAssist) + ItemValue
+   * 
+   * Note: This is an estimation and may not be 100% accurate, but provides a reasonable
+   * approximation without any risk of bans from Vanguard anti-cheat.
+   */
+  private estimateGoldFromStats(allGameData: AllGameData): void {
+    // Only estimate if we don't have real gold data
+    const hasRealGoldData = allGameData.allPlayers.some(p => p.totalGold !== undefined)
+    if (hasRealGoldData) return
+
+    const gameTime = allGameData.gameData.gameTime
+    const est = InGameState.GOLD_ESTIMATION
+
+    let gold100 = 0
+    let gold200 = 0
+
+    for (const player of allGameData.allPlayers) {
+      // Calculate estimated gold for this player
+      const passiveGold = Math.floor(gameTime * est.PASSIVE_GOLD_PER_SECOND)
+      const csGold = (player.scores.creepScore || 0) * est.GOLD_PER_CS
+      const killGold = (player.scores.kills || 0) * est.GOLD_PER_KILL
+      const assistGold = (player.scores.assists || 0) * est.GOLD_PER_ASSIST
+      
+      // Calculate gold spent on items
+      let itemValue = 0
+      for (const item of player.items) {
+        itemValue += item.price || 0
+      }
+
+      // Total estimated gold = starting gold + passive + income sources
+      // The actual "total gold" earned would be starting + passive + cs + kills + assists
+      // But we also need to account for items bought (gold spent)
+      const estimatedTotalGold = est.STARTING_GOLD + passiveGold + csGold + killGold + assistGold
+      // Current gold is approximately total earned minus items bought
+      const estimatedCurrentGold = Math.max(0, estimatedTotalGold - itemValue)
+
+      // Find player state - match by name and team to handle mirror matchups
+      const playerTeam = player.team === 'ORDER' ? 100 : 200
+      const statePlayer = this.gameState.player.find(
+        p => (p.riotIdGameName === player.riotIdGameName || p.championName === player.championName) && p.team === playerTeam
+      )
+      if (statePlayer) {
+        statePlayer.currentGold = estimatedCurrentGold
+        statePlayer.totalGold = estimatedTotalGold
+      }
+
+      // Aggregate team gold
+      if (player.team === 'ORDER') {
+        gold100 += estimatedTotalGold
+      } else if (player.team === 'CHAOS') {
+        gold200 += estimatedTotalGold
+      }
+    }
+
+    // Update team gold totals
+    this.gameState.gold[100] = gold100
+    this.gameState.gold[200] = gold200
+
+    // Update gold graph
+    this.gameState.goldGraph[Math.round(gameTime)] = gold100 - gold200
+
+    this.ctx.log.debug(`Gold estimated: Blue ~${gold100}g vs Red ~${gold200}g (estimation mode)`)
+  }
+
   constructor(
     private namespace: string,
     private ctx: PluginContext,
@@ -199,6 +285,7 @@ export class InGameState {
 
   /**
    * Updates gold from allGameData if the Live Client API provides gold fields.
+   * Falls back to gold estimation if real gold data is not available.
    * This is a fallback/alternative to FarsightData for gold tracking.
    */
   private updateGoldFromAllGameData(allGameData: AllGameData): void {
@@ -207,7 +294,11 @@ export class InGameState {
       p.totalGold !== undefined
     )
     
-    if (!hasGoldData) return
+    // If no real gold data, use estimation
+    if (!hasGoldData) {
+      this.estimateGoldFromStats(allGameData)
+      return
+    }
 
     let gold100 = 0
     let gold200 = 0
@@ -375,7 +466,10 @@ export class InGameState {
   }
 
   public handelFarsightData(farsightData: FarsightData): void {
-    if (farsightData.champions === undefined || !Array.isArray(farsightData.champions) || farsightData.champions.length <= 0) return
+    if (farsightData.champions === undefined || !Array.isArray(farsightData.champions) || farsightData.champions.length <= 0) {
+      this.ctx.log.debug('FarsightData received but no champions data available')
+      return
+    }
 
     if (this.farsightDataArray.length > 0) {
       let previousFarsightData = this.farsightDataArray[this.farsightDataArray.length - 1]
@@ -401,11 +495,18 @@ export class InGameState {
 
     for (const champion of champions) {
       for (const player in this.gameState.player) {
-        if (this.gameState.player[player].riotIdGameName !== champion.displayName && this.gameState.player[player].championName !== champion.name && this.gameState.player[player].championId !== champion.name) continue
+        const playerState = this.gameState.player[player]
+        // Match by displayName (which could be riotIdGameName or summonerName) or champion name
+        const isMatch = 
+          playerState.riotIdGameName === champion.displayName ||
+          playerState.championName === champion.name ||
+          playerState.championId === champion.name
+        
+        if (!isMatch) continue
 
-        this.gameState.player[player].experience = champion.experience
-        this.gameState.player[player].currentGold = champion.currentGold
-        this.gameState.player[player].totalGold = champion.totalGold
+        playerState.experience = champion.experience
+        playerState.currentGold = champion.currentGold
+        playerState.totalGold = champion.totalGold
       }
 
       if (champion.team === 100) {
@@ -419,6 +520,8 @@ export class InGameState {
     this.gameState.gold[100] = gold100
     this.gameState.gold[200] = gold200
     this.gameState.gameTime = farsightData.gameTime
+
+    this.ctx.log.debug(`FarsightData processed: Blue ${gold100}g vs Red ${gold200}g`)
 
     const state = this.convertGameState()
 
@@ -937,6 +1040,7 @@ export class InGameState {
     )
 
     newEvents.forEach((event) => {
+      this.ctx.log.debug(`Processing event: ${event.EventName}`)
       if (event.EventName === 'InhibKilled') {
         this.handleInhibEvent(event, allGameData)
       } else if (event.EventName === 'TurretKilled') {
@@ -944,10 +1048,13 @@ export class InGameState {
       } else if (event.EventName === 'ChampionKill') {
         this.handleKillEvent(event, allGameData)
       } else if (event.EventName === 'DragonKill') {
+        this.ctx.log.info(`DragonKill event detected: ${event.DragonType} killed by ${event.KillerName}`)
         this.handleDragonEvent(event, allGameData)
       } else if (event.EventName === 'BaronKill') {
+        this.ctx.log.info(`BaronKill event detected: killed by ${event.KillerName}`)
         this.handleBaronEvent(event, allGameData)
       } else if (event.EventName === 'HeraldKill') {
+        this.ctx.log.info(`HeraldKill event detected: killed by ${event.KillerName}`)
         this.handleHeraldEvent(event, allGameData)
       }
     })
@@ -1018,10 +1125,7 @@ export class InGameState {
           version: 1
         },
         assists: event.Assisters.map((a: string) => {
-          return allGameData.allPlayers
-            .find((p) => {
-              return p.riotIdGameName === a
-            })
+          return InGameState.findPlayerByName(allGameData.allPlayers, a)
             ?.rawChampionName.split('_')[3]
         }),
         other: 'Inhib',
@@ -1032,10 +1136,7 @@ export class InGameState {
             : // TODO Thats for all other creeps for now until we have some better icons for them
             event.KillerName.startsWith('SRU')
               ? 'Minion'
-              : allGameData.allPlayers
-                .find((p) => {
-                  return p.riotIdGameName === event.KillerName
-                })
+              : InGameState.findPlayerByName(allGameData.allPlayers, event.KillerName)
                 ?.rawChampionName.split('_')[3],
         team: team === 100 ? 200 : 100
       })
@@ -1058,10 +1159,7 @@ export class InGameState {
           version: 1
         },
         assists: event.Assisters.map((a: string) => {
-          return allGameData.allPlayers
-            .find((p) => {
-              return p.riotIdGameName === a
-            })
+          return InGameState.findPlayerByName(allGameData.allPlayers, a)
             ?.rawChampionName.split('_')[3]
         }),
         other: 'Turret',
@@ -1072,10 +1170,7 @@ export class InGameState {
             : // TODO Thats for all other creeps for now until we have some better icons for them
             event.KillerName.startsWith('SRU')
               ? 'Minion'
-              : allGameData.allPlayers
-                .find((p) => {
-                  return p.riotIdGameName === event.KillerName
-                })
+              : InGameState.findPlayerByName(allGameData.allPlayers, event.KillerName)
                 ?.rawChampionName.split('_')[3],
         team: team === 100 ? 200 : 100
       })
@@ -1108,16 +1203,10 @@ export class InGameState {
         version: 1
       },
       assists: event.Assisters.map((a: string) => {
-        return allGameData.allPlayers
-          .find((p) => {
-            return p.riotIdGameName === a
-          })
+        return InGameState.findPlayerByName(allGameData.allPlayers, a)
           ?.rawChampionName.split('_')[3]
       }),
-      other: allGameData.allPlayers
-        .find((p) => {
-          return p.riotIdGameName === event.VictimName
-        })
+      other: InGameState.findPlayerByName(allGameData.allPlayers, event.VictimName)
         ?.rawChampionName.split('_')[3],
       source: event.KillerName.startsWith('Minion')
         ? 'Minion'
@@ -1132,23 +1221,19 @@ export class InGameState {
                 : // TODO Thats for all other creeps for now until we have some better icons for them
                 event.KillerName.startsWith('SRU')
                   ? 'Minion'
-                  : allGameData.allPlayers
-                    .find((p) => {
-                      return p.riotIdGameName === event.KillerName
-                    })
+                  : InGameState.findPlayerByName(allGameData.allPlayers, event.KillerName)
                     ?.rawChampionName.split('_')[3],
       team:
-        allGameData.allPlayers.find((p) => {
-          return p.riotIdGameName === event.VictimName
-        })?.team === 'CHAOS'
+        InGameState.findPlayerByName(allGameData.allPlayers, event.VictimName)?.team === 'CHAOS'
           ? 100
           : 200
     })
   }
 
   private handleDragonEvent(event: Event, allGameData: AllGameData) {
-    // Get the team from the KillerName
-    const killer = allGameData.allPlayers.find((p) => p.riotIdGameName === event.KillerName)
+    // Get the team from the KillerName - check both riotIdGameName and summonerName
+    // as the Live Client API may use either depending on the game version
+    const killer = InGameState.findPlayerByName(allGameData.allPlayers, event.KillerName)
     if (!killer) {
       this.ctx.log.warn(`Could not find killer '${event.KillerName}' for dragon event`)
       return
@@ -1186,6 +1271,8 @@ export class InGameState {
         this.elderKill(elderEvent)
       }
 
+            const dragonType = this.convertDragon(mob)
+      this.ctx.log.info(`Emitting dragon event: name=Dragon, type=${dragonType}, team=${team}, time=${time}`)
       this.ctx.LPTE.emit({
         meta: {
           namespace: this.namespace,
@@ -1193,16 +1280,19 @@ export class InGameState {
           version: 1
         },
         name: 'Dragon',
-        type: this.convertDragon(mob),
+        type: dragonType,
         team,
         time
       })
+    } else {
+      this.ctx.log.debug(`Dragon event not emitted: 'Dragons' not in config.events (current: ${this.config.events?.join(', ')})`)
     }
   }
 
   private handleBaronEvent(event: Event, allGameData: AllGameData) {
-    // Get the team from the KillerName
-    const killer = allGameData.allPlayers.find((p) => p.riotIdGameName === event.KillerName)
+    // Get the team from the KillerName - check both riotIdGameName and summonerName
+    // as the Live Client API may use either depending on the game version
+    const killer = InGameState.findPlayerByName(allGameData.allPlayers, event.KillerName)
     if (!killer) {
       this.ctx.log.warn(`Could not find killer '${event.KillerName}' for baron event`)
       return
@@ -1217,9 +1307,10 @@ export class InGameState {
       time
     })
 
-    this.updateState()
+        this.updateState()
 
     if (this.config.events?.includes('Barons')) {
+      this.ctx.log.info(`Emitting baron event: team=${team}, time=${time}`)
       // Create a compatible event object for baronKill
       const baronEvent: InGameEvent = {
         eventname: EventType.BaronKill,
@@ -1230,12 +1321,15 @@ export class InGameState {
         sourceTeam: team === 100 ? TeamType.Order : TeamType.Chaos
       }
       this.baronKill(baronEvent)
+    } else {
+      this.ctx.log.debug(`Baron event not emitted: 'Barons' not in config.events (current: ${this.config.events?.join(', ')})`)
     }
   }
 
   private handleHeraldEvent(event: Event, allGameData: AllGameData) {
-    // Get the team from the KillerName
-    const killer = allGameData.allPlayers.find((p) => p.riotIdGameName === event.KillerName)
+    // Get the team from the KillerName - check both riotIdGameName and summonerName
+    // as the Live Client API may use either depending on the game version
+    const killer = InGameState.findPlayerByName(allGameData.allPlayers, event.KillerName)
     if (!killer) {
       this.ctx.log.warn(`Could not find killer '${event.KillerName}' for herald event`)
       return
@@ -1252,7 +1346,8 @@ export class InGameState {
 
     this.updateState()
 
-    if (this.config.events?.includes('Heralds')) {
+        if (this.config.events?.includes('Heralds')) {
+      this.ctx.log.info(`Emitting herald event: team=${team}, time=${time}`)
       this.ctx.LPTE.emit({
         meta: {
           namespace: this.namespace,
@@ -1264,6 +1359,8 @@ export class InGameState {
         team,
         time
       })
+    } else {
+      this.ctx.log.debug(`Herald event not emitted: 'Heralds' not in config.events (current: ${this.config.events?.join(', ')})`)
     }
   }
 }
