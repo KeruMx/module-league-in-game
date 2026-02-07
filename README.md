@@ -17,6 +17,54 @@ Este módulo es parte del ecosistema **league-prod-toolkit** y requiere:
 - Gráfico de diferencia de oro
 - Tablero de inhibidores
 
+## 🐉 Eventos de Objetivos (Dragones, Baron, Heraldo)
+
+### ✅ Implementación usando Live Client Data API
+
+Los eventos de dragones, barón y heraldo **están completamente implementados** usando la [Live Client Data API](https://developer.riotgames.com/docs/lol#game-client-api_live-client-data-api) oficial de Riot.
+
+**Eventos soportados:**
+- `DragonKill` - Todos los tipos: Fire, Earth, Water, Air, Hextech, Chemtech, Elder
+- `BaronKill` - Nashor Baron
+- `HeraldKill` - Rift Herald
+
+### Cómo funcionan los eventos
+
+El módulo procesa automáticamente los eventos del array `events.Events` que viene en `allgamedata`:
+
+```json
+{
+  "EventName": "DragonKill",
+  "EventTime": 310.36,
+  "DragonType": "Fire",
+  "KillerName": "SummonerName",
+  "Stolen": "False",
+  "Assisters": ["Player1", "Player2"]
+}
+```
+
+### ⏱️ Timers de Respawn (Baron/Elder)
+
+El módulo incluye timers de respawn para Baron y Elder Dragon que se activan automáticamente cuando se mata el objetivo.
+
+**Configuración requerida:**
+```typescript
+config.ppTimer = true  // Habilitar timers de power play
+```
+
+**El timer muestra:**
+- Tiempo restante hasta respawn (3 minutos para Baron/Elder)
+- Porcentaje de tiempo restante
+- Diferencia de oro durante el power play
+
+### Configuración de eventos
+
+Para habilitar los eventos, asegúrate de que `config.events` incluya los tipos deseados:
+
+```typescript
+config.events = ['Dragons', 'Barons', 'Heralds']
+```
+
 ## 🪙 Tracking de Oro (Gold)
 
 ### Métodos disponibles (en orden de prioridad):
@@ -67,9 +115,9 @@ Si aún deseas usarlo:
 
 | Evento | Namespace | Descripción |
 |--------|-----------|-------------|
-| `allgamedata` | module-league-in-game | Datos de la Live Client API |
+| `allgamedata` | module-league-in-game | Datos de la Live Client API (incluye eventos de objetivos) |
 | `farsight-data` | module-league-in-game | Datos de FarsightData (oro, experiencia) - opcional |
-| `live-events` | module-league-in-game | Eventos del juego (kills de dragón, barón, etc.) |
+| `live-events` | module-league-in-game | Eventos del juego desde otros módulos |
 
 ## Solución de problemas
 
@@ -81,7 +129,15 @@ Si aún deseas usarlo:
 
 ### Los eventos de dragón/barón no se muestran
 
-Esto puede deberse a un problema con el matching de nombres de jugadores. El módulo busca jugadores por `riotIdGameName` y `summonerName`.
+1. **Verifica que `config.events` incluya 'Dragons' y/o 'Barons'**
+2. **Verifica que `allgamedata` incluya el array `events.Events`**
+3. **El módulo busca jugadores por `riotIdGameName` y `summonerName`** - Si no encuentra el killer, no puede determinar el equipo
+
+### Los timers de respawn no aparecen
+
+1. **Verifica que `config.ppTimer = true`**
+2. **Los timers solo se muestran para Baron y Elder Dragon**
+3. **El timer se activa cuando se mata el objetivo, no antes**
 
 ## Desarrollo
 
