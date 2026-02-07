@@ -48,7 +48,6 @@ export class InGameState {
     GOLD_PER_CS: 19,                   // Average gold per CS (mix of minion types)
     GOLD_PER_KILL: 300,                // Base gold per champion kill
     GOLD_PER_ASSIST: 150,              // Approximate gold per assist
-    FIRST_BLOOD_BONUS: 100,            // Additional gold for first blood
   }
 
   /**
@@ -91,9 +90,10 @@ export class InGameState {
       // Current gold is approximately total earned minus items bought
       const estimatedCurrentGold = Math.max(0, estimatedTotalGold - itemValue)
 
-      // Update player state
+      // Find player state - match by name and team to handle mirror matchups
+      const playerTeam = player.team === 'ORDER' ? 100 : 200
       const statePlayer = this.gameState.player.find(
-        p => p.riotIdGameName === player.riotIdGameName || p.championName === player.championName
+        p => (p.riotIdGameName === player.riotIdGameName || p.championName === player.championName) && p.team === playerTeam
       )
       if (statePlayer) {
         statePlayer.currentGold = estimatedCurrentGold

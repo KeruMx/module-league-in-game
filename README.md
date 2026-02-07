@@ -52,10 +52,16 @@ Si aún deseas usarlo:
 1. Instalar [league-observer-tool](https://github.com/RCVolus/league-observer-tool)
 2. El observer tool enviará eventos `farsight-data` a este módulo
 
-### Prioridad de fuentes de oro:
-1. **FarsightData** (si está recibiendo datos) → Más preciso pero riesgoso
-2. **Live Client API** (si proporciona oro) → Preciso y seguro
-3. **Estimación** (fallback automático) → Aproximado y seguro
+### Cómo funciona (orden de ejecución):
+
+1. **FarsightData** (evento separado) → Si se reciben datos de `farsight-data`, se usan directamente
+2. **Live Client API** → Cuando se procesan `allgamedata`, el módulo verifica si hay datos de oro
+3. **Estimación** (fallback automático) → Si no hay datos de oro de la API, estima automáticamente
+
+**Orden de precisión (de mejor a peor):**
+- FarsightData → Más preciso (datos reales de memoria) pero ⚠️ riesgo de ban
+- Live Client API → Preciso y seguro (cuando está disponible)
+- Estimación → Aproximado pero 100% seguro
 
 ## Eventos que consume este módulo
 
