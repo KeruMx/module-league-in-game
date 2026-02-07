@@ -1041,7 +1041,6 @@ export class InGameState {
 
     newEvents.forEach((event) => {
       this.ctx.log.debug(`Processing event: ${event.EventName}`)
-      
       if (event.EventName === 'InhibKilled') {
         this.handleInhibEvent(event, allGameData)
       } else if (event.EventName === 'TurretKilled') {
@@ -1272,9 +1271,8 @@ export class InGameState {
         this.elderKill(elderEvent)
       }
 
-      const dragonType = this.convertDragon(mob)
+            const dragonType = this.convertDragon(mob)
       this.ctx.log.info(`Emitting dragon event: name=Dragon, type=${dragonType}, team=${team}, time=${time}`)
-      
       this.ctx.LPTE.emit({
         meta: {
           namespace: this.namespace,
@@ -1309,11 +1307,10 @@ export class InGameState {
       time
     })
 
-    this.updateState()
+        this.updateState()
 
     if (this.config.events?.includes('Barons')) {
       this.ctx.log.info(`Emitting baron event: team=${team}, time=${time}`)
-      
       // Create a compatible event object for baronKill
       const baronEvent: InGameEvent = {
         eventname: EventType.BaronKill,
@@ -1349,9 +1346,8 @@ export class InGameState {
 
     this.updateState()
 
-    if (this.config.events?.includes('Heralds')) {
+        if (this.config.events?.includes('Heralds')) {
       this.ctx.log.info(`Emitting herald event: team=${team}, time=${time}`)
-      
       this.ctx.LPTE.emit({
         meta: {
           namespace: this.namespace,
