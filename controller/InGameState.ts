@@ -1040,6 +1040,8 @@ export class InGameState {
     )
 
     newEvents.forEach((event) => {
+      this.ctx.log.debug(`Processing event: ${event.EventName}`)
+      
       if (event.EventName === 'InhibKilled') {
         this.handleInhibEvent(event, allGameData)
       } else if (event.EventName === 'TurretKilled') {
@@ -1047,10 +1049,13 @@ export class InGameState {
       } else if (event.EventName === 'ChampionKill') {
         this.handleKillEvent(event, allGameData)
       } else if (event.EventName === 'DragonKill') {
+        this.ctx.log.info(`DragonKill event detected: ${event.DragonType} killed by ${event.KillerName}`)
         this.handleDragonEvent(event, allGameData)
       } else if (event.EventName === 'BaronKill') {
+        this.ctx.log.info(`BaronKill event detected: killed by ${event.KillerName}`)
         this.handleBaronEvent(event, allGameData)
       } else if (event.EventName === 'HeraldKill') {
+        this.ctx.log.info(`HeraldKill event detected: killed by ${event.KillerName}`)
         this.handleHeraldEvent(event, allGameData)
       }
     })
@@ -1267,6 +1272,9 @@ export class InGameState {
         this.elderKill(elderEvent)
       }
 
+      const dragonType = this.convertDragon(mob)
+      this.ctx.log.info(`Emitting dragon event: name=Dragon, type=${dragonType}, team=${team}, time=${time}`)
+      
       this.ctx.LPTE.emit({
         meta: {
           namespace: this.namespace,
@@ -1274,10 +1282,12 @@ export class InGameState {
           version: 1
         },
         name: 'Dragon',
-        type: this.convertDragon(mob),
+        type: dragonType,
         team,
         time
       })
+    } else {
+      this.ctx.log.debug(`Dragon event not emitted: 'Dragons' not in config.events (current: ${this.config.events?.join(', ')})`)
     }
   }
 
@@ -1302,6 +1312,8 @@ export class InGameState {
     this.updateState()
 
     if (this.config.events?.includes('Barons')) {
+      this.ctx.log.info(`Emitting baron event: team=${team}, time=${time}`)
+      
       // Create a compatible event object for baronKill
       const baronEvent: InGameEvent = {
         eventname: EventType.BaronKill,
@@ -1312,6 +1324,8 @@ export class InGameState {
         sourceTeam: team === 100 ? TeamType.Order : TeamType.Chaos
       }
       this.baronKill(baronEvent)
+    } else {
+      this.ctx.log.debug(`Baron event not emitted: 'Barons' not in config.events (current: ${this.config.events?.join(', ')})`)
     }
   }
 
@@ -1336,6 +1350,8 @@ export class InGameState {
     this.updateState()
 
     if (this.config.events?.includes('Heralds')) {
+      this.ctx.log.info(`Emitting herald event: team=${team}, time=${time}`)
+      
       this.ctx.LPTE.emit({
         meta: {
           namespace: this.namespace,
@@ -1347,6 +1363,8 @@ export class InGameState {
         team,
         time
       })
+    } else {
+      this.ctx.log.debug(`Herald event not emitted: 'Heralds' not in config.events (current: ${this.config.events?.join(', ')})`)
     }
   }
 }
