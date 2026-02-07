@@ -41,6 +41,83 @@ export class InGameState {
     return players.find((p) => p.riotIdGameName === name || p.summonerName === name)
   }
 
+  // Gold estimation constants (safe alternative to memory reading)
+  private static readonly GOLD_ESTIMATION = {
+    PASSIVE_GOLD_PER_SECOND: 1.0,     // Base passive gold generation
+    STARTING_GOLD: 500,                // Starting gold for all players
+    GOLD_PER_CS: 19,                   // Average gold per CS (mix of minion types)
+    GOLD_PER_KILL: 300,                // Base gold per champion kill
+    GOLD_PER_ASSIST: 150,              // Approximate gold per assist
+    FIRST_BLOOD_BONUS: 100,            // Additional gold for first blood
+  }
+
+  /**
+   * Estimates player gold based on available data from the Live Client API.
+   * This is a safe alternative to memory reading (FarsightData) that won't trigger bans.
+   * 
+   * Formula: StartingGold + PassiveGold + (CS × GoldPerCS) + (Kills × GoldPerKill) + (Assists × GoldPerAssist) + ItemValue
+   * 
+   * Note: This is an estimation and may not be 100% accurate, but provides a reasonable
+   * approximation without any risk of bans from Vanguard anti-cheat.
+   */
+  private estimateGoldFromStats(allGameData: AllGameData): void {
+    // Only estimate if we don't have real gold data
+    const hasRealGoldData = allGameData.allPlayers.some(p => p.totalGold !== undefined)
+    if (hasRealGoldData) return
+
+    const gameTime = allGameData.gameData.gameTime
+    const est = InGameState.GOLD_ESTIMATION
+
+    let gold100 = 0
+    let gold200 = 0
+
+    for (const player of allGameData.allPlayers) {
+      // Calculate estimated gold for this player
+      const passiveGold = Math.floor(gameTime * est.PASSIVE_GOLD_PER_SECOND)
+      const csGold = (player.scores.creepScore || 0) * est.GOLD_PER_CS
+      const killGold = (player.scores.kills || 0) * est.GOLD_PER_KILL
+      const assistGold = (player.scores.assists || 0) * est.GOLD_PER_ASSIST
+      
+      // Calculate gold spent on items
+      let itemValue = 0
+      for (const item of player.items) {
+        itemValue += item.price || 0
+      }
+
+      // Total estimated gold = starting gold + passive + income sources
+      // The actual "total gold" earned would be starting + passive + cs + kills + assists
+      // But we also need to account for items bought (gold spent)
+      const estimatedTotalGold = est.STARTING_GOLD + passiveGold + csGold + killGold + assistGold
+      // Current gold is approximately total earned minus items bought
+      const estimatedCurrentGold = Math.max(0, estimatedTotalGold - itemValue)
+
+      // Update player state
+      const statePlayer = this.gameState.player.find(
+        p => p.riotIdGameName === player.riotIdGameName || p.championName === player.championName
+      )
+      if (statePlayer) {
+        statePlayer.currentGold = estimatedCurrentGold
+        statePlayer.totalGold = estimatedTotalGold
+      }
+
+      // Aggregate team gold
+      if (player.team === 'ORDER') {
+        gold100 += estimatedTotalGold
+      } else if (player.team === 'CHAOS') {
+        gold200 += estimatedTotalGold
+      }
+    }
+
+    // Update team gold totals
+    this.gameState.gold[100] = gold100
+    this.gameState.gold[200] = gold200
+
+    // Update gold graph
+    this.gameState.goldGraph[Math.round(gameTime)] = gold100 - gold200
+
+    this.ctx.log.debug(`Gold estimated: Blue ~${gold100}g vs Red ~${gold200}g (estimation mode)`)
+  }
+
   constructor(
     private namespace: string,
     private ctx: PluginContext,
@@ -208,6 +285,7 @@ export class InGameState {
 
   /**
    * Updates gold from allGameData if the Live Client API provides gold fields.
+   * Falls back to gold estimation if real gold data is not available.
    * This is a fallback/alternative to FarsightData for gold tracking.
    */
   private updateGoldFromAllGameData(allGameData: AllGameData): void {
@@ -216,7 +294,11 @@ export class InGameState {
       p.totalGold !== undefined
     )
     
-    if (!hasGoldData) return
+    // If no real gold data, use estimation
+    if (!hasGoldData) {
+      this.estimateGoldFromStats(allGameData)
+      return
+    }
 
     let gold100 = 0
     let gold200 = 0

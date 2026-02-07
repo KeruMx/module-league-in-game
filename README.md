@@ -17,71 +17,65 @@ Este módulo es parte del ecosistema **league-prod-toolkit** y requiere:
 - Gráfico de diferencia de oro
 - Tablero de inhibidores
 
-## ⚠️ Importante: Tracking de Oro (Gold)
+## 🪙 Tracking de Oro (Gold)
 
-### El oro NO se obtiene de la Riot API
+### Métodos disponibles (en orden de prioridad):
 
-La API de Live Client Data de Riot **NO proporciona datos de oro en modo espectador**. Por lo tanto, el tracking de oro requiere herramientas externas.
+#### 1. Live Client API (Cuando está disponible)
+En algunos modos de juego, la Live Client API proporciona datos de oro directamente (`totalGold`, `currentGold`). El módulo usa estos datos automáticamente cuando están disponibles.
 
-### Opciones para obtener datos de oro:
+#### 2. ⭐ Estimación de Oro (NUEVO - Alternativa Segura)
+**Esta es la alternativa segura que no requiere lectura de memoria y no tiene riesgo de ban.**
 
-#### 1. FarsightData (Recomendado para producciones)
+Cuando la Live Client API no proporciona oro (modo espectador), el módulo ahora **estima el oro automáticamente** basándose en:
 
-FarsightData es un lector de memoria que obtiene datos directamente del cliente de League of Legends. **No está incluido en este repositorio**.
+- **Oro pasivo**: ~1 oro por segundo
+- **CS (Creep Score)**: ~19 oro promedio por minion/monstruo
+- **Kills**: 300 oro base por kill
+- **Asistencias**: ~150 oro por asistencia
+- **Items**: Valor de los items comprados
 
-**Para usar FarsightData:**
-
-1. Instalar y configurar [league-observer-tool](https://github.com/RCVolus/league-observer-tool)
-2. Asegurarse de que el módulo Farsight está corriendo en la PC del observador
-3. El observer tool enviará eventos `farsight-data` a este módulo automáticamente
-
-**Requisitos de FarsightData:**
-- Ejecutar en la misma PC donde corre el cliente de LoL (observador)
-- Los memory offsets deben estar actualizados para el parche actual de LoL
-- Vanguard (anti-cheat de Riot) puede bloquear el lector de memoria
-
-**Estructura de datos FarsightData esperada:**
-```typescript
-interface FarsightData {
-   champions: Array<{
-      name: string;
-      displayName: string;
-      team: number; // 100 = Blue, 200 = Red
-      currentGold: number;
-      totalGold: number;
-      experience: number;
-      level: number;
-      // ... otros campos
-   }>;
-   gameTime: number;
-   nextDragonType: string;
-}
+**Fórmula de estimación:**
+```
+Oro Total ≈ 500 (inicial) + (tiempo × 1) + (CS × 19) + (kills × 300) + (assists × 150)
+Oro Actual ≈ Oro Total - Valor de Items
 ```
 
-#### 2. Live Client API (Limitado)
+⚠️ **Nota**: La estimación no es 100% precisa (no incluye objetivos, placas de torre, bounties, etc.), pero proporciona una aproximación razonable sin ningún riesgo de ban.
 
-En algunos modos de juego (no espectador), la Live Client API puede proporcionar datos de oro. Este módulo ya tiene implementado un fallback que intenta obtener oro de `allPlayers.totalGold` si está disponible.
+#### 3. FarsightData (⚠️ RIESGO DE BAN)
+FarsightData usa lectura de memoria, lo cual **puede resultar en baneos** debido al anti-cheat Vanguard de Riot. 
+
+**No se recomienda usar FarsightData** a menos que sea absolutamente necesario y estés dispuesto a asumir el riesgo.
+
+Si aún deseas usarlo:
+1. Instalar [league-observer-tool](https://github.com/RCVolus/league-observer-tool)
+2. El observer tool enviará eventos `farsight-data` a este módulo
+
+### Prioridad de fuentes de oro:
+1. **FarsightData** (si está recibiendo datos) → Más preciso pero riesgoso
+2. **Live Client API** (si proporciona oro) → Preciso y seguro
+3. **Estimación** (fallback automático) → Aproximado y seguro
 
 ## Eventos que consume este módulo
 
 | Evento | Namespace | Descripción |
 |--------|-----------|-------------|
 | `allgamedata` | module-league-in-game | Datos de la Live Client API |
-| `farsight-data` | module-league-in-game | Datos de FarsightData (oro, experiencia) |
+| `farsight-data` | module-league-in-game | Datos de FarsightData (oro, experiencia) - opcional |
 | `live-events` | module-league-in-game | Eventos del juego (kills de dragón, barón, etc.) |
 
 ## Solución de problemas
 
 ### El oro no se muestra
 
-1. **Verificar que FarsightData está corriendo** - El observer tool debe estar activo
-2. **Verificar los memory offsets** - Después de cada parche de LoL, pueden necesitar actualización
-3. **Verificar Vanguard** - El anti-cheat puede bloquear el lector de memoria
-4. **Revisar logs** - Buscar errores relacionados con `farsight-data` en la consola
+1. **Verifica que el módulo esté recibiendo datos** - Revisa los logs del toolkit
+2. **Modo estimación activo** - Si ves "estimation mode" en los logs, el sistema está estimando el oro (no es un error)
+3. **FarsightData bloqueado** - Si usas FarsightData, Vanguard puede estar bloqueándolo
 
 ### Los eventos de dragón/barón no se muestran
 
-Esto puede deberse a un problema con el matching de nombres de jugadores. Ver los cambios recientes que añaden fallback para `summonerName` además de `riotIdGameName`.
+Esto puede deberse a un problema con el matching de nombres de jugadores. El módulo busca jugadores por `riotIdGameName` y `summonerName`.
 
 ## Desarrollo
 
