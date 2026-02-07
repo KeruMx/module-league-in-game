@@ -384,7 +384,10 @@ export class InGameState {
   }
 
   public handelFarsightData(farsightData: FarsightData): void {
-    if (farsightData.champions === undefined || !Array.isArray(farsightData.champions) || farsightData.champions.length <= 0) return
+    if (farsightData.champions === undefined || !Array.isArray(farsightData.champions) || farsightData.champions.length <= 0) {
+      this.ctx.log.debug('FarsightData received but no champions data available')
+      return
+    }
 
     if (this.farsightDataArray.length > 0) {
       let previousFarsightData = this.farsightDataArray[this.farsightDataArray.length - 1]
@@ -410,11 +413,18 @@ export class InGameState {
 
     for (const champion of champions) {
       for (const player in this.gameState.player) {
-        if (this.gameState.player[player].riotIdGameName !== champion.displayName && this.gameState.player[player].championName !== champion.name && this.gameState.player[player].championId !== champion.name) continue
+        const playerState = this.gameState.player[player]
+        // Match by displayName (which could be riotIdGameName or summonerName) or champion name
+        const isMatch = 
+          playerState.riotIdGameName === champion.displayName ||
+          playerState.championName === champion.name ||
+          playerState.championId === champion.name
+        
+        if (!isMatch) continue
 
-        this.gameState.player[player].experience = champion.experience
-        this.gameState.player[player].currentGold = champion.currentGold
-        this.gameState.player[player].totalGold = champion.totalGold
+        playerState.experience = champion.experience
+        playerState.currentGold = champion.currentGold
+        playerState.totalGold = champion.totalGold
       }
 
       if (champion.team === 100) {
@@ -428,6 +438,8 @@ export class InGameState {
     this.gameState.gold[100] = gold100
     this.gameState.gold[200] = gold200
     this.gameState.gameTime = farsightData.gameTime
+
+    this.ctx.log.debug(`FarsightData processed: Blue ${gold100}g vs Red ${gold200}g`)
 
     const state = this.convertGameState()
 
