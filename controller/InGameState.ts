@@ -32,6 +32,15 @@ export class InGameState {
     'Mountain': MobType.MountainDragon
   }
 
+  /**
+   * Find a player by name, checking both riotIdGameName and summonerName.
+   * This is needed because the Live Client API may use either field
+   * depending on the game version and region settings.
+   */
+  private static findPlayerByName(players: Player[], name: string): Player | undefined {
+    return players.find((p) => p.riotIdGameName === name || p.summonerName === name)
+  }
+
   constructor(
     private namespace: string,
     private ctx: PluginContext,
@@ -1018,10 +1027,7 @@ export class InGameState {
           version: 1
         },
         assists: event.Assisters.map((a: string) => {
-          return allGameData.allPlayers
-            .find((p) => {
-              return p.riotIdGameName === a || p.summonerName === a
-            })
+          return InGameState.findPlayerByName(allGameData.allPlayers, a)
             ?.rawChampionName.split('_')[3]
         }),
         other: 'Inhib',
@@ -1032,10 +1038,7 @@ export class InGameState {
             : // TODO Thats for all other creeps for now until we have some better icons for them
             event.KillerName.startsWith('SRU')
               ? 'Minion'
-              : allGameData.allPlayers
-                .find((p) => {
-                  return p.riotIdGameName === event.KillerName || p.summonerName === event.KillerName
-                })
+              : InGameState.findPlayerByName(allGameData.allPlayers, event.KillerName)
                 ?.rawChampionName.split('_')[3],
         team: team === 100 ? 200 : 100
       })
@@ -1058,10 +1061,7 @@ export class InGameState {
           version: 1
         },
         assists: event.Assisters.map((a: string) => {
-          return allGameData.allPlayers
-            .find((p) => {
-              return p.riotIdGameName === a || p.summonerName === a
-            })
+          return InGameState.findPlayerByName(allGameData.allPlayers, a)
             ?.rawChampionName.split('_')[3]
         }),
         other: 'Turret',
@@ -1072,10 +1072,7 @@ export class InGameState {
             : // TODO Thats for all other creeps for now until we have some better icons for them
             event.KillerName.startsWith('SRU')
               ? 'Minion'
-              : allGameData.allPlayers
-                .find((p) => {
-                  return p.riotIdGameName === event.KillerName || p.summonerName === event.KillerName
-                })
+              : InGameState.findPlayerByName(allGameData.allPlayers, event.KillerName)
                 ?.rawChampionName.split('_')[3],
         team: team === 100 ? 200 : 100
       })
@@ -1108,16 +1105,10 @@ export class InGameState {
         version: 1
       },
       assists: event.Assisters.map((a: string) => {
-        return allGameData.allPlayers
-          .find((p) => {
-            return p.riotIdGameName === a || p.summonerName === a
-          })
+        return InGameState.findPlayerByName(allGameData.allPlayers, a)
           ?.rawChampionName.split('_')[3]
       }),
-      other: allGameData.allPlayers
-        .find((p) => {
-          return p.riotIdGameName === event.VictimName || p.summonerName === event.VictimName
-        })
+      other: InGameState.findPlayerByName(allGameData.allPlayers, event.VictimName)
         ?.rawChampionName.split('_')[3],
       source: event.KillerName.startsWith('Minion')
         ? 'Minion'
@@ -1132,15 +1123,10 @@ export class InGameState {
                 : // TODO Thats for all other creeps for now until we have some better icons for them
                 event.KillerName.startsWith('SRU')
                   ? 'Minion'
-                  : allGameData.allPlayers
-                    .find((p) => {
-                      return p.riotIdGameName === event.KillerName || p.summonerName === event.KillerName
-                    })
+                  : InGameState.findPlayerByName(allGameData.allPlayers, event.KillerName)
                     ?.rawChampionName.split('_')[3],
       team:
-        allGameData.allPlayers.find((p) => {
-          return p.riotIdGameName === event.VictimName || p.summonerName === event.VictimName
-        })?.team === 'CHAOS'
+        InGameState.findPlayerByName(allGameData.allPlayers, event.VictimName)?.team === 'CHAOS'
           ? 100
           : 200
     })
@@ -1149,9 +1135,7 @@ export class InGameState {
   private handleDragonEvent(event: Event, allGameData: AllGameData) {
     // Get the team from the KillerName - check both riotIdGameName and summonerName
     // as the Live Client API may use either depending on the game version
-    const killer = allGameData.allPlayers.find((p) => 
-      p.riotIdGameName === event.KillerName || p.summonerName === event.KillerName
-    )
+    const killer = InGameState.findPlayerByName(allGameData.allPlayers, event.KillerName)
     if (!killer) {
       this.ctx.log.warn(`Could not find killer '${event.KillerName}' for dragon event`)
       return
@@ -1206,9 +1190,7 @@ export class InGameState {
   private handleBaronEvent(event: Event, allGameData: AllGameData) {
     // Get the team from the KillerName - check both riotIdGameName and summonerName
     // as the Live Client API may use either depending on the game version
-    const killer = allGameData.allPlayers.find((p) => 
-      p.riotIdGameName === event.KillerName || p.summonerName === event.KillerName
-    )
+    const killer = InGameState.findPlayerByName(allGameData.allPlayers, event.KillerName)
     if (!killer) {
       this.ctx.log.warn(`Could not find killer '${event.KillerName}' for baron event`)
       return
@@ -1242,9 +1224,7 @@ export class InGameState {
   private handleHeraldEvent(event: Event, allGameData: AllGameData) {
     // Get the team from the KillerName - check both riotIdGameName and summonerName
     // as the Live Client API may use either depending on the game version
-    const killer = allGameData.allPlayers.find((p) => 
-      p.riotIdGameName === event.KillerName || p.summonerName === event.KillerName
-    )
+    const killer = InGameState.findPlayerByName(allGameData.allPlayers, event.KillerName)
     if (!killer) {
       this.ctx.log.warn(`Could not find killer '${event.KillerName}' for herald event`)
       return
