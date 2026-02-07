@@ -17,6 +17,21 @@ export class InGameState {
   public actions: Map<string, (allGameData: AllGameData, id: string) => void> =
     new Map()
 
+  // Map dragon types from Live Client API format to internal MobType
+  private static readonly dragonTypeMap: { [key: string]: MobType } = {
+    'Hextech': MobType.HextechDragon,
+    'Chemtech': MobType.ChemtechDragon,
+    'Air': MobType.CloudDragon,
+    'Cloud': MobType.CloudDragon,
+    'Elder': MobType.ElderDragon,
+    'Fire': MobType.InfernalDragon,
+    'Infernal': MobType.InfernalDragon,
+    'Water': MobType.OceanDragon,
+    'Ocean': MobType.OceanDragon,
+    'Earth': MobType.MountainDragon,
+    'Mountain': MobType.MountainDragon
+  }
+
   constructor(
     private namespace: string,
     private ctx: PluginContext,
@@ -182,6 +197,51 @@ export class InGameState {
     })
   }
 
+  /**
+   * Updates gold from allGameData if the Live Client API provides gold fields.
+   * This is a fallback/alternative to FarsightData for gold tracking.
+   */
+  private updateGoldFromAllGameData(allGameData: AllGameData): void {
+    // Check if any player has gold data from the Live Client API
+    const hasGoldData = allGameData.allPlayers.some(p => 
+      p.totalGold !== undefined
+    )
+    
+    if (!hasGoldData) return
+
+    let gold100 = 0
+    let gold200 = 0
+
+    for (const player of allGameData.allPlayers) {
+      // Update individual player gold if available
+      if (player.totalGold !== undefined) {
+        const statePlayer = this.gameState.player.find(
+          p => p.riotIdGameName === player.riotIdGameName
+        )
+        if (statePlayer) {
+          statePlayer.currentGold = player.currentGold ?? 0
+          statePlayer.totalGold = player.totalGold
+        }
+
+        // Aggregate team gold
+        if (player.team === 'ORDER') {
+          gold100 += player.totalGold
+        } else if (player.team === 'CHAOS') {
+          gold200 += player.totalGold
+        }
+      }
+    }
+
+    // Update team gold
+    this.gameState.gold[100] = gold100
+    this.gameState.gold[200] = gold200
+    
+    // Update gold graph
+    this.gameState.goldGraph[Math.round(allGameData.gameData.gameTime)] = gold100 - gold200
+    
+    this.updateState()
+  }
+
   public handelData(allGameData: AllGameData): void {
     if (this.gameData.length > 0) {
       let previousGameData = this.gameData[this.gameData.length - 1]
@@ -209,6 +269,9 @@ export class InGameState {
           champ.key
         ));
       })
+
+      // Update gold from allGameData if available (Live Client API provides gold in some modes)
+      this.updateGoldFromAllGameData(allGameData)
 
       setTimeout(() => {
         this.checkPlayerUpdate(allGameData)
@@ -880,6 +943,12 @@ export class InGameState {
         this.handleTowerEvent(event, allGameData)
       } else if (event.EventName === 'ChampionKill') {
         this.handleKillEvent(event, allGameData)
+      } else if (event.EventName === 'DragonKill') {
+        this.handleDragonEvent(event, allGameData)
+      } else if (event.EventName === 'BaronKill') {
+        this.handleBaronEvent(event, allGameData)
+      } else if (event.EventName === 'HeraldKill') {
+        this.handleHeraldEvent(event, allGameData)
       }
     })
   }
@@ -1075,5 +1144,126 @@ export class InGameState {
           ? 100
           : 200
     })
+  }
+
+  private handleDragonEvent(event: Event, allGameData: AllGameData) {
+    // Get the team from the KillerName
+    const killer = allGameData.allPlayers.find((p) => p.riotIdGameName === event.KillerName)
+    if (!killer) {
+      this.ctx.log.warn(`Could not find killer '${event.KillerName}' for dragon event`)
+      return
+    }
+    const team = killer.team === 'ORDER' ? 100 : 200
+    const time = Math.round(event.EventTime)
+
+    // Convert DragonType from Live Client API format to MobType
+    const mob = InGameState.dragonTypeMap[event.DragonType]
+    if (!mob) {
+      this.ctx.log.warn(`Unknown dragon type: ${event.DragonType}`)
+      return
+    }
+
+    // Add to objectives
+    this.gameState.objectives[team].push({
+      type: EventType.DragonKill,
+      mob,
+      time
+    })
+
+    this.updateState()
+
+    if (this.config.events?.includes('Dragons')) {
+      if (event.DragonType === 'Elder') {
+        // Create a compatible event object for elderKill
+        const elderEvent: InGameEvent = {
+          eventname: EventType.DragonKill,
+          other: MobType.ElderDragon,
+          otherTeam: TeamType.Neutral,
+          source: event.KillerName,
+          sourceID: 0,
+          sourceTeam: team === 100 ? TeamType.Order : TeamType.Chaos
+        }
+        this.elderKill(elderEvent)
+      }
+
+      this.ctx.LPTE.emit({
+        meta: {
+          namespace: this.namespace,
+          type: 'event',
+          version: 1
+        },
+        name: 'Dragon',
+        type: this.convertDragon(mob),
+        team,
+        time
+      })
+    }
+  }
+
+  private handleBaronEvent(event: Event, allGameData: AllGameData) {
+    // Get the team from the KillerName
+    const killer = allGameData.allPlayers.find((p) => p.riotIdGameName === event.KillerName)
+    if (!killer) {
+      this.ctx.log.warn(`Could not find killer '${event.KillerName}' for baron event`)
+      return
+    }
+    const team = killer.team === 'ORDER' ? 100 : 200
+    const time = Math.round(event.EventTime)
+
+    // Add to objectives
+    this.gameState.objectives[team].push({
+      type: EventType.BaronKill,
+      mob: MobType.Baron,
+      time
+    })
+
+    this.updateState()
+
+    if (this.config.events?.includes('Barons')) {
+      // Create a compatible event object for baronKill
+      const baronEvent: InGameEvent = {
+        eventname: EventType.BaronKill,
+        other: MobType.Baron,
+        otherTeam: TeamType.Neutral,
+        source: event.KillerName,
+        sourceID: 0,
+        sourceTeam: team === 100 ? TeamType.Order : TeamType.Chaos
+      }
+      this.baronKill(baronEvent)
+    }
+  }
+
+  private handleHeraldEvent(event: Event, allGameData: AllGameData) {
+    // Get the team from the KillerName
+    const killer = allGameData.allPlayers.find((p) => p.riotIdGameName === event.KillerName)
+    if (!killer) {
+      this.ctx.log.warn(`Could not find killer '${event.KillerName}' for herald event`)
+      return
+    }
+    const team = killer.team === 'ORDER' ? 100 : 200
+    const time = Math.round(event.EventTime)
+
+    // Add to objectives
+    this.gameState.objectives[team].push({
+      type: EventType.HeraldKill,
+      mob: MobType.Herald,
+      time
+    })
+
+    this.updateState()
+
+    if (this.config.events?.includes('Heralds')) {
+      this.ctx.LPTE.emit({
+        meta: {
+          namespace: this.namespace,
+          type: 'event',
+          version: 1
+        },
+        name: 'Herald',
+        type: 'Herald',
+        team,
+        time
+      })
+    }
   }
 }

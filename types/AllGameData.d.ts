@@ -36,6 +36,9 @@ export interface Player {
     summonerSpellTwo: SummonerSpell
   }
   team: Team
+  // Gold fields may be available depending on game mode/spectator status
+  currentGold?: number
+  totalGold?: number
 }
 
 export interface Item {
