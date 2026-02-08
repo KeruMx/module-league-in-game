@@ -1,11 +1,20 @@
 import type { PluginContext } from '@rcv-prod-toolkit/types'
 import { InGameState } from './controller/InGameState'
+import { RiotApiService } from './controller/RiotApiService'
+import { SpectatorBootstrapController } from './controller/SpectatorBootstrapController'
 import type { AllGameData } from './types/AllGameData'
 import type { Config } from './types/Config'
 import { FarsightData } from './types/FarsightData'
+import { RIOT_REGIONS } from './types/SpectatorTypes'
 
 module.exports = async (ctx: PluginContext) => {
   const namespace = ctx.plugin.module.getName()
+
+  // Get Riot API key from environment variable
+  const riotApiKey = process.env.RIOT_API_KEY || ''
+  if (!riotApiKey) {
+    ctx.log.warn('RIOT_API_KEY environment variable not set. Spectator bootstrap features will be disabled.')
+  }
 
   const configRes = await ctx.LPTE.request({
     meta: {
@@ -36,10 +45,25 @@ module.exports = async (ctx: PluginContext) => {
         standings: true,
         tags: true,
         tower: true
+      },
+      spectator: {
+        riotId: '',
+        region: 'NA',
+        autoPolling: false,
+        pollingIntervalMs: 30000
       }
     } as Config,
     configRes?.config
   )
+
+  // Initialize Riot API service and Spectator Bootstrap controller
+  let riotApiService: RiotApiService | null = null
+  let spectatorBootstrap: SpectatorBootstrapController | null = null
+
+  if (riotApiKey) {
+    riotApiService = new RiotApiService(ctx, riotApiKey)
+    spectatorBootstrap = new SpectatorBootstrapController(namespace, ctx, riotApiService)
+  }
 
   ctx.LPTE.on(namespace, 'set-settings', (e) => {
     config.items = e.items
@@ -195,6 +219,126 @@ module.exports = async (ctx: PluginContext) => {
   ctx.LPTE.on(namespace, 'hide-leader-board', (e) => {
     if (inGameState === undefined) return
     inGameState.gameState.showLeaderBoard = false
+  })
+
+  // Spectator Bootstrap event handlers
+  ctx.LPTE.on(namespace, 'spectator-configure', async (e) => {
+    if (!spectatorBootstrap) {
+      ctx.LPTE.emit({
+        meta: {
+          type: e.meta.reply as string,
+          namespace: 'reply',
+          version: 1
+        },
+        success: false,
+        error: 'Spectator bootstrap not available. Set RIOT_API_KEY environment variable.'
+      })
+      return
+    }
+
+    const result = await spectatorBootstrap.configure(e.riotId, e.region)
+
+    // Update config with new spectator settings
+    if (result.success && e.riotId && e.region) {
+      config.spectator = {
+        riotId: e.riotId,
+        region: e.region,
+        autoPolling: e.autoPolling ?? false,
+        pollingIntervalMs: e.pollingIntervalMs ?? 30000
+      }
+
+      // Start polling if requested
+      if (e.autoPolling) {
+        spectatorBootstrap.startPolling(e.pollingIntervalMs)
+      }
+
+      // Save config
+      ctx.LPTE.emit({
+        meta: {
+          type: 'set',
+          namespace: 'plugin-config',
+          version: 1
+        },
+        config
+      })
+    }
+
+    ctx.LPTE.emit({
+      meta: {
+        type: e.meta.reply as string,
+        namespace: 'reply',
+        version: 1
+      },
+      ...result,
+      bootstrap: spectatorBootstrap.getBootstrap()
+    })
+  })
+
+  ctx.LPTE.on(namespace, 'spectator-refresh', async (e) => {
+    if (!spectatorBootstrap) {
+      ctx.LPTE.emit({
+        meta: {
+          type: e.meta.reply as string,
+          namespace: 'reply',
+          version: 1
+        },
+        success: false,
+        error: 'Spectator bootstrap not available'
+      })
+      return
+    }
+
+    const result = await spectatorBootstrap.refresh()
+
+    ctx.LPTE.emit({
+      meta: {
+        type: e.meta.reply as string,
+        namespace: 'reply',
+        version: 1
+      },
+      ...result,
+      bootstrap: spectatorBootstrap.getBootstrap()
+    })
+  })
+
+  ctx.LPTE.on(namespace, 'spectator-start-polling', (e) => {
+    if (!spectatorBootstrap) return
+    spectatorBootstrap.startPolling(e.intervalMs)
+  })
+
+  ctx.LPTE.on(namespace, 'spectator-stop-polling', () => {
+    if (!spectatorBootstrap) return
+    spectatorBootstrap.stopPolling()
+  })
+
+  ctx.LPTE.on(namespace, 'spectator-reset', () => {
+    if (!spectatorBootstrap) return
+    spectatorBootstrap.reset()
+  })
+
+  ctx.LPTE.on(namespace, 'spectator-get-state', (e) => {
+    ctx.LPTE.emit({
+      meta: {
+        type: e.meta.reply as string,
+        namespace: 'reply',
+        version: 1
+      },
+      available: !!spectatorBootstrap,
+      state: spectatorBootstrap?.getState() ?? null,
+      bootstrap: spectatorBootstrap?.getBootstrap() ?? null,
+      regions: Object.keys(RIOT_REGIONS)
+    })
+  })
+
+  ctx.LPTE.on(namespace, 'spectator-get-bootstrap', (e) => {
+    ctx.LPTE.emit({
+      meta: {
+        type: e.meta.reply as string,
+        namespace: 'reply',
+        version: 1
+      },
+      bootstrap: spectatorBootstrap?.getBootstrap() ?? null
+    })
   })
 
   // Emit event that we're ready to operate
