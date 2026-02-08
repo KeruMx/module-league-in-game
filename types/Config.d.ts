@@ -17,4 +17,10 @@ export interface Config {
     heralds: boolean
     tower: boolean
   }
+  spectator?: {
+    riotId: string
+    region: string
+    autoPolling: boolean
+    pollingIntervalMs: number
+  }
 }
