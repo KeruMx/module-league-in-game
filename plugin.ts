@@ -11,7 +11,7 @@ module.exports = async (ctx: PluginContext) => {
   const namespace = ctx.plugin.module.getName()
 
   // Get Riot API key from environment variable
-  const riotApiKey = process.env.RIOT_API_KEY || ''
+  const riotApiKey = process.env.RIOT_API_KEY
   if (!riotApiKey) {
     ctx.log.warn('RIOT_API_KEY environment variable not set. Spectator bootstrap features will be disabled.')
   }

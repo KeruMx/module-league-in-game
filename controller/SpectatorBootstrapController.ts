@@ -75,7 +75,7 @@ export class SpectatorBootstrapController {
     // Parse and validate Riot ID
     const parsed = this.riotApiService.parseRiotId(riotId)
     if (!parsed) {
-      const error = 'Invalid Riot ID format. Expected: gameName#tagLine (gameName: 3-16 chars, tagLine: 3-5 chars)'
+      const error = 'Invalid Riot ID format. Expected: gameName#tagLine (gameName: 3-16 characters, tagLine: 3-5 alphanumeric characters)'
       this.state.lastError = error
       return { success: false, error }
     }

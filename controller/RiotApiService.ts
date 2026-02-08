@@ -240,7 +240,8 @@ export class RiotApiService {
     region: RegionCode
   ): Promise<{ summonerId: string | null; error: string | null }> {
     const platform = this.getPlatformRouting(region)
-    const url = `https://${platform}.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/${puuid}`
+    const encodedPuuid = encodeURIComponent(puuid)
+    const url = `https://${platform}.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/${encodedPuuid}`
 
     this.ctx.log.info(`Resolving Summoner ID for PUUID ${puuid.substring(0, 8)}...`)
 
@@ -266,7 +267,8 @@ export class RiotApiService {
     region: RegionCode
   ): Promise<{ game: ActiveGameData | null; error: string | null; notInGame: boolean }> {
     const platform = this.getPlatformRouting(region)
-    const url = `https://${platform}.api.riotgames.com/lol/spectator/v5/active-games/by-summoner/${encryptedSummonerId}`
+    const encodedSummonerId = encodeURIComponent(encryptedSummonerId)
+    const url = `https://${platform}.api.riotgames.com/lol/spectator/v5/active-games/by-summoner/${encodedSummonerId}`
 
     this.ctx.log.info(`Checking for active game for summoner ${encryptedSummonerId.substring(0, 8)}...`)
 
