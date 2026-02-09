@@ -674,17 +674,21 @@ body {
   flex-direction: row;
   display: flex;
   grid-template-columns: repeat(5, 1fr);
+  --sb-team-width: 640px;
+  --sb-gold-space: 110px;
 }
 
 .sb-middle {
   display: flex;
   flex-direction: column;
   box-shadow: 0px 0px 5px 3px rgba(0, 0, 0, 0.2);
+  flex: 0 0 auto;
+  align-items: center;
 }
 
 .sb-kills {
-  width: 158px;
-  height: 70px;
+  width: 215px;
+  height: 61px;
   background-color: var(--background-light-color);
   display: flex;
   justify-content: center;
@@ -723,13 +727,13 @@ body {
 }
 
 .sb-time {
-  width: 158px;
+  width: 165px;
   height: 30px;
   background-color: var(--background-color);
   color: var(--text-color);
   display: flex;
   justify-content: center;
-  padding-top: 3px;
+  padding: 3px 18px 0;
   align-items: center;
   font-size: 26px;
   font-family: var(--secondary-font-family);
@@ -737,19 +741,39 @@ body {
 
 
 .sb-team {
-  width: 500px;
+  width: var(--sb-team-width);
   height: 62px;
   font-size: 25px;
   display: flex;
   justify-content: space-evenly;
   align-items: center;
   position: relative;
-  box-shadow: 0px 0px 5px 3px rgba(0, 0, 0, 0.2);
   z-index: 10;
+}
+
+.sb-team::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 0;
+  box-shadow: 0px 0px 5px 3px rgba(0, 0, 0, 0.2);
+}
+
+.sb-team > * {
+  position: relative;
+  z-index: 1;
 }
 
 .sb-team.sb-blue {
   padding-right: 20px;
+  padding-right: calc(20px + var(--sb-gold-space));
+}
+
+.sb-team.sb-blue::before {
+  right: calc(-20px + var(--sb-gold-space));
   background-color: var(--background-light-color);
   background: linear-gradient(to right, var(--blue-team), var(--background-light-color) 30%);
 }
@@ -757,6 +781,11 @@ body {
 .sb-team.sb-red {
   padding-left: 20px;
   flex-direction: row-reverse;
+  padding-left: calc(20px + var(--sb-gold-space));
+}
+
+.sb-team.sb-red::before {
+  left: calc(-20px + var(--sb-gold-space));
   background-color: var(--background-light-color);
   background: linear-gradient(to left, var(--red-team), var(--background-light-color) 30%);
 }
@@ -874,6 +903,10 @@ body {
 
 .sb-gold .sb-icon {
   height: 15px;
+}
+
+.sb-stat.sb-gold {
+  display: none;
 }
 
 /* --------------------------------- */
