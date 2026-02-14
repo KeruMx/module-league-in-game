@@ -317,6 +317,10 @@
     <label class="form-check-label" for="scoreboard-standings">Standings</label>
   </div>
   <div class="form-check form-check-inline">
+    <input class="form-check-input" type="checkbox" id="scoreboard-dragons" />
+    <label class="form-check-label" for="scoreboard-dragons">Dragons</label>
+  </div>
+  <div class="form-check form-check-inline">
     <input class="form-check-input" type="checkbox" id="scoreboard-barons" />
     <label class="form-check-label" for="scoreboard-barons">Barons</label>
   </div>
@@ -491,6 +495,26 @@
   </button>
   <button class="btn btn-danger btn-lg" onclick="testEvent(200)">
     Test Red Team
+  </button>
+</div>
+
+<h3>Remove Dragon</h3>
+<div class="d-flex align-items-center mb-3" style="gap: 1rem">
+  <button class="btn btn-primary btn-lg" onclick="removeDragon(100)">
+    Remove Blue Dragon
+  </button>
+  <button class="btn btn-danger btn-lg" onclick="removeDragon(200)">
+    Remove Red Dragon
+  </button>
+</div>
+
+<h3>Remove Baron</h3>
+<div class="d-flex align-items-center mb-3" style="gap: 1rem">
+  <button class="btn btn-primary btn-lg" onclick="removeBaron(100)">
+    Remove Blue Baron
+  </button>
+  <button class="btn btn-danger btn-lg" onclick="removeBaron(200)">
+    Remove Red Baron
   </button>
 </div>
 
