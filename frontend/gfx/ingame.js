@@ -7,6 +7,7 @@ let showNicknames,
   score,
   tags,
   standings,
+  dragons,
   barons,
   heralds,
   tower,
@@ -154,11 +155,13 @@ const sbRedStanding = sbRed.querySelector('.sb-standing')
 const sbBlueKills = scoreboard.querySelector('.sb-kills-blue')
 const sbRedKills = scoreboard.querySelector('.sb-kills-red')
 
+const sbBlueDragon = sbBlue.querySelector('.sb-dragon-blue')
 const sbBlueBaron = sbBlue.querySelector('.sb-baron-blue')
 const sbBlueHerald = sbBlue.querySelector('.sb-herald-blue')
 const sbBlueTower = sbBlue.querySelector('.sb-tower-blue')
 const sbBlueGold = sbBlue.querySelector('.sb-gold-blue')
 
+const sbRedDragon = sbRed.querySelector('.sb-dragon-red')
 const sbRedBaron = sbRed.querySelector('.sb-baron-red')
 const sbRedHerald = sbRed.querySelector('.sb-herald-red')
 const sbRedTower = sbRed.querySelector('.sb-tower-red')
@@ -216,6 +219,13 @@ function updateGameState(e) {
   sbRedKills.innerText = state.kills[200]
 
   sbTime.innerText = convertSecsToTime(state.gameTime)
+
+  sbBlueDragon.innerText = state.objectives[100].filter(
+    (o) => o.type === 'OnKillDragon_Spectator'
+  ).length
+  sbRedDragon.innerText = state.objectives[200].filter(
+    (o) => o.type === 'OnKillDragon_Spectator'
+  ).length
 
   sbBlueBaron.innerText = state.objectives[100].filter(
     (o) => o.type === 'OnKillWorm_Spectator'
@@ -702,6 +712,19 @@ function updateSettings(e) {
     }
   }
 
+  if (dragons !== e.scoreboard.dragons) {
+    dragons = e.scoreboard.dragons
+    if (!e.scoreboard.dragons) {
+      document.querySelectorAll('.sb-dragon').forEach((n) => {
+        n.style.display = 'none'
+      })
+    } else {
+      document.querySelectorAll('.sb-dragon').forEach((n) => {
+        n.style.display = 'flex'
+      })
+    }
+  }
+
   if (barons !== e.scoreboard.barons) {
     barons = e.scoreboard.barons
     if (!e.scoreboard.barons) {
@@ -1118,14 +1141,7 @@ LPTE.onready(async () => {
       }
     }
   })
-  LPTE.on('module-league-in-game', 'test-event', (e) => {
-    emitEvent({
-      team: e.team,
-      name: e.event,
-      time: 160000,
-      type: e.event
-    })
-  })
+  // test-event is now handled by the backend which emits the proper 'event' type
   LPTE.on('module-league-in-game', 'test-killfeed', (e) => {
     if (e.team === 100) {
       addKill({

@@ -173,7 +173,7 @@ export class InGameState {
     this.updateState()
   }
 
-  private convertGameState() {
+  public convertGameState() {
     return {
       ...this.gameState,
       gameTime: this.gameState.gameTime + (this.config.delay / 1000),
@@ -1230,6 +1230,105 @@ export class InGameState {
         sourceTeam: team === 100 ? TeamType.Order : TeamType.Chaos
       }
       this.baronKill(baronEvent)
+    }
+  }
+
+  public addTestObjective(team: 100 | 200, eventName: string): void {
+    const time = Math.round(this.gameState.gameTime)
+
+    const dragonType = InGameState.dragonTypeMap[eventName]
+
+    if (dragonType) {
+      this.gameState.objectives[team].push({
+        type: EventType.DragonKill,
+        mob: dragonType,
+        time
+      })
+
+      this.ctx.LPTE.emit({
+        meta: {
+          namespace: this.namespace,
+          type: 'event',
+          version: 1
+        },
+        name: 'Dragon',
+        type: eventName,
+        team,
+        time
+      })
+    } else if (eventName === 'Baron') {
+      this.gameState.objectives[team].push({
+        type: EventType.BaronKill,
+        mob: MobType.Baron,
+        time
+      })
+
+      this.ctx.LPTE.emit({
+        meta: {
+          namespace: this.namespace,
+          type: 'event',
+          version: 1
+        },
+        name: 'Baron',
+        type: 'Baron',
+        team,
+        time
+      })
+    } else if (eventName === 'Herald') {
+      this.gameState.objectives[team].push({
+        type: EventType.HeraldKill,
+        mob: MobType.Herald,
+        time
+      })
+
+      this.ctx.LPTE.emit({
+        meta: {
+          namespace: this.namespace,
+          type: 'event',
+          version: 1
+        },
+        name: 'Herald',
+        type: 'Herald',
+        team,
+        time
+      })
+    }
+
+    this.updateState()
+
+    this.ctx.LPTE.emit({
+      meta: {
+        namespace: this.namespace,
+        type: 'update',
+        version: 1
+      },
+      state: this.convertGameState()
+    })
+  }
+
+  public removeObjective(team: 100 | 200, objectiveType: 'dragon' | 'baron'): void {
+    const eventType = objectiveType === 'dragon' ? EventType.DragonKill : EventType.BaronKill
+
+    let lastIndex = -1
+    for (let i = this.gameState.objectives[team].length - 1; i >= 0; i--) {
+      if (this.gameState.objectives[team][i].type === eventType) {
+        lastIndex = i
+        break
+      }
+    }
+
+    if (lastIndex !== -1) {
+      this.gameState.objectives[team].splice(lastIndex, 1)
+      this.updateState()
+
+      this.ctx.LPTE.emit({
+        meta: {
+          namespace: this.namespace,
+          type: 'update',
+          version: 1
+        },
+        state: this.convertGameState()
+      })
     }
   }
 

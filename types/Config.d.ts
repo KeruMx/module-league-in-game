@@ -13,6 +13,7 @@ export interface Config {
     score: boolean
     tags: boolean
     standings: boolean
+    dragons: boolean
     barons: boolean
     heralds: boolean
     tower: boolean

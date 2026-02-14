@@ -30,6 +30,7 @@ module.exports = async (ctx: PluginContext) => {
       autoTargetFrameCover: false,
       scoreboard: {
         active: true,
+        dragons: true,
         barons: true,
         heralds: true,
         score: true,
@@ -166,6 +167,30 @@ module.exports = async (ctx: PluginContext) => {
         },
         state: inGameState.gameState
       })
+    })
+
+    ctx.LPTE.on(namespace, 'test-event', (e) => {
+      if (inGameState === undefined) {
+        inGameState = new InGameState(namespace, ctx, config, state, statics)
+      }
+
+      const team = e.team as 100 | 200
+      const eventName = e.event as string
+      inGameState.addTestObjective(team, eventName)
+    })
+
+    ctx.LPTE.on(namespace, 'remove-dragon', (e) => {
+      if (inGameState === undefined) return
+
+      const team = e.team as 100 | 200
+      inGameState.removeObjective(team, 'dragon')
+    })
+
+    ctx.LPTE.on(namespace, 'remove-baron', (e) => {
+      if (inGameState === undefined) return
+
+      const team = e.team as 100 | 200
+      inGameState.removeObjective(team, 'baron')
     })
   })
 

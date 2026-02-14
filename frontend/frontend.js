@@ -27,6 +27,7 @@ document.querySelector('#settings').addEventListener('submit', (e) => {
       score: document.querySelector('#scoreboard-score').checked,
       tags: document.querySelector('#scoreboard-tags').checked,
       standings: document.querySelector('#scoreboard-standings').checked,
+      dragons: document.querySelector('#scoreboard-dragons').checked,
       barons: document.querySelector('#scoreboard-barons').checked,
       heralds: document.querySelector('#scoreboard-heralds').checked,
       tower: document.querySelector('#scoreboard-tower').checked
@@ -150,6 +151,26 @@ function testEvent(team) {
         ].text
   })
 }
+function removeDragon(team) {
+  LPTE.emit({
+    meta: {
+      namespace: 'module-league-in-game',
+      type: 'remove-dragon',
+      version: 1
+    },
+    team
+  })
+}
+function removeBaron(team) {
+  LPTE.emit({
+    meta: {
+      namespace: 'module-league-in-game',
+      type: 'remove-baron',
+      version: 1
+    },
+    team
+  })
+}
 function testKillfeed(team) {
   LPTE.emit({
     meta: {
@@ -226,6 +247,8 @@ function initSettings(settings) {
   document.querySelector('#scoreboard-tags').checked = settings.scoreboard.tags
   document.querySelector('#scoreboard-standings').checked =
     settings.scoreboard.standings
+  document.querySelector('#scoreboard-dragons').checked =
+    settings.scoreboard.dragons
   document.querySelector('#scoreboard-barons').checked =
     settings.scoreboard.barons
   document.querySelector('#scoreboard-heralds').checked =
