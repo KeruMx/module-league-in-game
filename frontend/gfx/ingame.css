@@ -430,6 +430,9 @@ body {
 .event.baron .event-img {
   top: 28% !important;
 }
+.event.first-blood .event-img {
+  top: 25% !important;
+}
 
 .team {
   position: relative;
