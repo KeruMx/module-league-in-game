@@ -14,6 +14,7 @@ export class InGameState {
   public farsightDataArray: FarsightData[] = []
   public itemEpicness: number[]
 
+  public firstBloodOccurred: boolean = false
   public actions: Map<string, (allGameData: AllGameData, id: string) => void> =
     new Map()
 
@@ -943,6 +944,7 @@ export class InGameState {
         this.handleTowerEvent(event, allGameData)
       } else if (event.EventName === 'ChampionKill') {
         this.handleKillEvent(event, allGameData)
+        this.handleFirstBloodEvent(event, allGameData)
       } else if (event.EventName === 'DragonKill') {
         this.handleDragonEvent(event, allGameData)
       } else if (event.EventName === 'BaronKill') {
@@ -1330,6 +1332,29 @@ export class InGameState {
         state: this.convertGameState()
       })
     }
+  }
+
+  private handleFirstBloodEvent(event: Event, allGameData: AllGameData) {
+    if (this.firstBloodOccurred) return
+    this.firstBloodOccurred = true
+
+    if (!this.config.events?.includes('First Blood')) return
+
+    const killer = allGameData.allPlayers.find((p) => p.riotIdGameName === event.KillerName)
+    if (!killer) return
+
+    const team = killer.team === 'ORDER' ? 100 : 200
+    const time = Math.round(event.EventTime)
+
+    this.ctx.LPTE.emit({
+      meta: {
+        namespace: this.namespace,
+        type: 'first-blood',
+        version: 1
+      },
+      team,
+      time
+    })
   }
 
   private handleHeraldEvent(event: Event, allGameData: AllGameData) {

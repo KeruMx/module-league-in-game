@@ -576,6 +576,39 @@ function emitEvent(e) {
   }, 6500)
 }
 
+function emitFirstBlood(e) {
+  if (showLeaderBoard) return
+
+  if (hasEvent) {
+    return setTimeout(() => {
+      emitFirstBlood(e)
+    }, 2000)
+  }
+
+  hasEvent = true
+  const eventDiv =
+    e.team === 100
+      ? blueTeam.querySelector('.event')
+      : redTeam.querySelector('.event')
+
+  const eventName = eventDiv.querySelector('.event-name')
+  eventName.querySelector('span').innerText = 'First Blood'
+  eventDiv.querySelector('.event-time').innerText = `AT ${convertSecsToTime(
+    e.time
+  )}`
+  eventDiv.querySelector('.event-img').src = 'img/first-blood.png'
+
+  eventDiv.classList.add('first-blood', 'show')
+
+  setTimeout(() => {
+    eventDiv.classList.remove('show')
+  }, 5000)
+  setTimeout(() => {
+    eventDiv.classList.remove('first-blood')
+    hasEvent = false
+  }, 6500)
+}
+
 const killfeed = document.querySelector('#killfeed')
 function addKill(event) {
   if (killfeed.children.length >= 5) {
@@ -1013,6 +1046,7 @@ LPTE.onready(async () => {
   LPTE.on('module-league-in-game', 'platings-update', platingsUpdate)
   LPTE.on('module-league-in-game', 'update', updateGameState)
   LPTE.on('module-league-in-game', 'event', emitEvent)
+  LPTE.on('module-league-in-game', 'first-blood', emitFirstBlood)
   LPTE.on('module-league-in-game', 'pp-update', ppUpdate)
   LPTE.on('module-league-in-game', 'name-update', nameUpdate)
   LPTE.on('module-league-in-game', 'set-settings', updateSettings)
@@ -1140,6 +1174,12 @@ LPTE.onready(async () => {
         )
       }
     }
+  })
+  LPTE.on('module-league-in-game', 'test-first-blood', (e) => {
+    emitFirstBlood({
+      team: e.team,
+      time: gameState?.gameTime || 0
+    })
   })
   // test-event is now handled by the backend which emits the proper 'event' type
   LPTE.on('module-league-in-game', 'test-killfeed', (e) => {

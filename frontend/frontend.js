@@ -205,6 +205,17 @@ function testPPTimer(shouldShow) {
   })
 }
 
+function testFirstBlood(team) {
+  LPTE.emit({
+    meta: {
+      namespace: 'module-league-in-game',
+      type: 'test-first-blood',
+      version: 1
+    },
+    team
+  })
+}
+
 function initSettings(settings) {
   const itemOptions = document.querySelector('#items').options
   for (let i = 0; i < itemOptions.length; i++) {
