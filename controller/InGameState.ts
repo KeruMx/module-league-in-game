@@ -198,49 +198,94 @@ export class InGameState {
     })
   }
 
+  // Gold estimation constants
+  private static readonly STARTING_GOLD = 500
+  private static readonly PASSIVE_GOLD_START = 110 // 1:50 in seconds
+  private static readonly PASSIVE_GOLD_RATE = 2.04 // gold per second after 1:50
+  private static readonly GOLD_PER_CS = 14 // ~14g average (melee ~21g, caster ~14g, jungle varies)
+  private static readonly GOLD_PER_KILL = 300 // average gold per kill
+  private static readonly GOLD_PER_ASSIST = 100 // average gold per assist
+  // Objective gold per team (shared across 5 players)
+  private static readonly GOLD_PER_DRAGON = 125 // ~25g per player
+  private static readonly GOLD_PER_BARON = 1500 // ~300g per player
+  private static readonly GOLD_PER_HERALD = 100 // local gold for killer
+  private static readonly GOLD_PER_PLATE = 175 // per tower plate destroyed
+
   /**
-   * Updates gold from allGameData if the Live Client API provides gold fields.
-   * This is a fallback/alternative to FarsightData for gold tracking.
+   * Estimates gold for each player and team based on items, CS, kills,
+   * assists, passive gold income, and objective gold. Used because the
+   * Live Client API does not provide totalGold in spectator mode.
    */
-  private updateGoldFromAllGameData(allGameData: AllGameData): void {
-    // Check if any player has gold data from the Live Client API
-    const hasGoldData = allGameData.allPlayers.some(p => 
-      p.totalGold !== undefined
-    )
-    
-    if (!hasGoldData) return
+  private estimateGoldFromGameData(allGameData: AllGameData): void {
+    if (allGameData.allPlayers.length === 0) return
+
+    const gameTime = allGameData.gameData.gameTime
 
     let gold100 = 0
     let gold200 = 0
 
     for (const player of allGameData.allPlayers) {
-      // Update individual player gold if available
-      if (player.totalGold !== undefined) {
-        const statePlayer = this.gameState.player.find(
-          p => p.riotIdGameName === player.riotIdGameName
-        )
-        if (statePlayer) {
-          statePlayer.currentGold = player.currentGold ?? 0
-          statePlayer.totalGold = player.totalGold
-        }
+      // Sum item prices (gold spent on current items - known minimum)
+      const itemsGold = player.items.reduce((sum, item) => sum + (item.price * item.count), 0)
 
-        // Aggregate team gold
-        if (player.team === 'ORDER') {
-          gold100 += player.totalGold
-        } else if (player.team === 'CHAOS') {
-          gold200 += player.totalGold
-        }
+      // Passive gold income (starts at 1:50)
+      const passiveGold = Math.max(0, gameTime - InGameState.PASSIVE_GOLD_START) * InGameState.PASSIVE_GOLD_RATE
+
+      // Estimate from CS, kills, assists
+      const csGold = player.scores.creepScore * InGameState.GOLD_PER_CS
+      const killGold = player.scores.kills * InGameState.GOLD_PER_KILL
+      const assistGold = player.scores.assists * InGameState.GOLD_PER_ASSIST
+
+      // Total estimated gold = starting + passive + cs + kills + assists
+      const formulaGold = InGameState.STARTING_GOLD + passiveGold + csGold + killGold + assistGold
+
+      // Use the higher of: formula estimate or items cost (items is a known minimum)
+      const estimatedGold = Math.max(formulaGold, itemsGold)
+
+      // Update individual player gold
+      const statePlayer = this.gameState.player.find(
+        p => p.riotIdGameName === player.riotIdGameName
+      )
+      if (statePlayer) {
+        statePlayer.totalGold = Math.round(estimatedGold)
+      }
+
+      // Aggregate team gold
+      if (player.team === 'ORDER') {
+        gold100 += estimatedGold
+      } else if (player.team === 'CHAOS') {
+        gold200 += estimatedGold
       }
     }
 
+    // Add objective gold (dragons, barons, heralds)
+    for (const obj of this.gameState.objectives[100]) {
+      if (obj.type === EventType.DragonKill) gold100 += InGameState.GOLD_PER_DRAGON
+      else if (obj.type === EventType.BaronKill) gold100 += InGameState.GOLD_PER_BARON
+      else if (obj.type === EventType.HeraldKill) gold100 += InGameState.GOLD_PER_HERALD
+    }
+    for (const obj of this.gameState.objectives[200]) {
+      if (obj.type === EventType.DragonKill) gold200 += InGameState.GOLD_PER_DRAGON
+      else if (obj.type === EventType.BaronKill) gold200 += InGameState.GOLD_PER_BARON
+      else if (obj.type === EventType.HeraldKill) gold200 += InGameState.GOLD_PER_HERALD
+    }
+
+    // Add tower plate gold (plates are destroyed from enemy towers, gold goes to attacking team)
+    // platings[100] = plates destroyed on blue side → gold for red team (200)
+    // platings[200] = plates destroyed on red side → gold for blue team (100)
+    const p200 = this.gameState.platings[200]
+    const bluePlates = p200.L2 + p200.L1 + p200.L0
+    const p100 = this.gameState.platings[100]
+    const redPlates = p100.L2 + p100.L1 + p100.L0
+    gold100 += bluePlates * InGameState.GOLD_PER_PLATE
+    gold200 += redPlates * InGameState.GOLD_PER_PLATE
+
     // Update team gold
-    this.gameState.gold[100] = gold100
-    this.gameState.gold[200] = gold200
-    
-    // Update gold graph
-    this.gameState.goldGraph[Math.round(allGameData.gameData.gameTime)] = gold100 - gold200
-    
-    this.updateState()
+    this.gameState.gold[100] = Math.round(gold100)
+    this.gameState.gold[200] = Math.round(gold200)
+
+    // Update gold graph (gold difference over time)
+    this.gameState.goldGraph[Math.round(gameTime)] = Math.round(gold100 - gold200)
   }
 
   public handelData(allGameData: AllGameData): void {
@@ -271,8 +316,8 @@ export class InGameState {
         ));
       })
 
-      // Update gold from allGameData if available (Live Client API provides gold in some modes)
-      this.updateGoldFromAllGameData(allGameData)
+      // Estimate gold from available game data (items, CS, kills, assists, passive income)
+      this.estimateGoldFromGameData(allGameData)
 
       setTimeout(() => {
         this.checkPlayerUpdate(allGameData)

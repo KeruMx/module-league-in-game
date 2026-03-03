@@ -212,9 +212,6 @@ function updateGameState(e) {
   const state = e.state
   gameState = state
 
-  sbBlueGold.innerText = calcK(state.gold[100])
-  sbRedGold.innerText = calcK(state.gold[200])
-
   sbBlueKills.innerText = state.kills[100]
   sbRedKills.innerText = state.kills[200]
 
@@ -893,13 +890,15 @@ function secsToMinutesAndSeconds(secs) {
  * @param {any[]} array 
  */
 function shrinkArray (array, sliceSize = 30) {
+  if (array.length === 0) return []
+
   let newArray = []
 
   if (array.length < sliceSize) {
     sliceSize = array.length
   }
 
-  for (i = 0; i < array.length - sliceSize + 1; i += sliceSize) {
+  for (let i = 0; i < array.length - sliceSize + 1; i += sliceSize) {
     const sum = array
       .slice(i, i + sliceSize) //get the range
       .reduce((a,b) => a + b) //sum up
@@ -925,9 +924,9 @@ function showGoldGraph(data) {
     )
     Chart.controllers.NegativeTransparentLine = Chart.controllers.line.extend({
       update: function () {
-        // get the min and max values
-        var min = Math.min.apply(null, [...this.chart.data.datasets[0].data, -100])
-        var max = Math.max.apply(null, [...this.chart.data.datasets[0].data, 100])
+        // get the min and max values (include 0 so zero line is always visible)
+        var min = Math.min.apply(null, [...this.chart.data.datasets[0].data, 0])
+        var max = Math.max.apply(null, [...this.chart.data.datasets[0].data, 0])
         var yScale = this.getScaleForId(this.getDataset().yAxisID)
   
         // figure out the pixels for these and the value 0
@@ -980,15 +979,21 @@ function showGoldGraph(data) {
       scales: {
         yAxes: [
           {
+            scaleLabel: {
+              display: true,
+              labelString: 'Gold',
+              fontColor: white,
+              fontSize: 16
+            },
             ticks: {
               autoskip: true,
               autoSkipPadding: 50,
               beginAtZero: true,
-              stepSize: 500,
+              stepSize: 1000,
               fontSize: 14,
               fontColor: white,
-              callback: function (value, index, values) {
-                return value.toFixed(0).replace(/-/g, '')
+              callback: function (value) {
+                return calcK(Math.abs(value))
               }
             },
             gridLines: {
