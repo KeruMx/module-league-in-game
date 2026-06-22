@@ -272,19 +272,29 @@ function initSettings(settings) {
 }
 
 let server = ''
+const overlayVersion = '6.7.6'
+
+function buildOverlayUrl(location, apiKey) {
+  const params = new URLSearchParams()
+
+  if (apiKey !== null && apiKey !== undefined) {
+    params.set('apikey', apiKey)
+  }
+
+  params.set('v', overlayVersion)
+
+  return `${location}/ingame.html?${params.toString()}`
+}
 
 LPTE.onready(async () => {
   server = await window.constants.getModuleURL()
   const location = `${server}/gfx`
 
   const apiKey = await window.constants.getApiKey()
+  const overlayUrl = buildOverlayUrl(location, apiKey)
 
-  document.querySelector('#ingame-embed').value = `${location}/ingame.html${
-    apiKey !== null ? '?apikey=' + apiKey : ''
-  }`
-  document.querySelector('#ingame-gfx').src = `${location}/ingame.html${
-    apiKey !== null ? '?apikey=' + apiKey : ''
-  }`
+  document.querySelector('#ingame-embed').value = overlayUrl
+  document.querySelector('#ingame-gfx').src = overlayUrl
 
   const settings = await LPTE.request({
     meta: {

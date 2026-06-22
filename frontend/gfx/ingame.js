@@ -450,9 +450,29 @@ const roundOfMap = {
   8: 'Quarter Finals'
 }
 
+function resolveLogoSrc(logo) {
+  if (!logo) {
+    return ''
+  }
+
+  if (logo.startsWith('http://') || logo.startsWith('https://')) {
+    return logo
+  }
+
+  return `/pages/op-module-teams/img/${logo}`
+}
+
+function getTeamDisplayName(team) {
+  if (!team) {
+    return 'Tag'
+  }
+
+  return team.tag || team.name || 'Tag'
+}
+
 function changeColors(e) {
-  sbBlueTag.innerText = e.teams.blueTeam?.tag || 'Tag'
-  sbRedTag.innerText = e.teams.redTeam?.tag || 'Tag'
+  sbBlueTag.innerText = getTeamDisplayName(e.teams.blueTeam)
+  sbRedTag.innerText = getTeamDisplayName(e.teams.redTeam)
   sbBlueLogo.style.display = `none`
   sbRedLogo.style.display = `none`
   sbBlueStanding.innerText = e.teams.blueTeam?.standing || ''
@@ -463,12 +483,15 @@ function changeColors(e) {
   nameSpan.textContent = e.tournamentName
   resizeText(tournamentDiv)
 
-  if (e.teams.blueTeam?.logo !== undefined && e.teams.blueTeam?.logo !== '') {
-    sbBlueLogo.src = `/pages/op-module-teams/img/${e.teams.blueTeam.logo}`
+  const blueLogoSrc = resolveLogoSrc(e.teams.blueTeam?.logo)
+  if (blueLogoSrc !== '') {
+    sbBlueLogo.src = blueLogoSrc
     sbBlueLogo.style.display = 'block'
   }
-  if (e.teams.redTeam?.logo !== undefined && e.teams.redTeam?.logo !== '') {
-    sbRedLogo.src = `/pages/op-module-teams/img/${e.teams.redTeam.logo}`
+
+  const redLogoSrc = resolveLogoSrc(e.teams.redTeam?.logo)
+  if (redLogoSrc !== '') {
+    sbRedLogo.src = redLogoSrc
     sbRedLogo.style.display = 'block'
   }
 
