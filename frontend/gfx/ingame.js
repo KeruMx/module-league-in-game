@@ -447,7 +447,8 @@ const roundOfMap = {
   1: 'Upper Bracket Final',
   2: 'Finals',
   4: 'Semi Finals',
-  8: 'Quarter Finals'
+  8: 'Quarter Finals',
+  9: 'Round Robin'
 }
 
 function resolveLogoSrc(logo) {
@@ -479,7 +480,7 @@ function changeColors(e) {
   sbRedStanding.innerText = e.teams.redTeam?.standing || ''
 
   roundOfSpan.textContent =
-    e.roundOf <= 8 ? roundOfMap[e.roundOf] : `Round of ${e.roundOf}`
+    e.roundOf <= 9 ? roundOfMap[e.roundOf] : `Round of ${e.roundOf}`
   nameSpan.textContent = e.tournamentName
   resizeText(tournamentDiv)
 
